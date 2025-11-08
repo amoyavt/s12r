@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
+    <title>Screen Recorder</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>Screen Recorder</h1>
+            <p class="status" id="statusMessage">Ready to record</p>
+        </header>
+
+        <!-- Configuration Panel -->
+        <main class="config-panel">
+            <div class="scroll-container">
+                <!-- Recording Section -->
+                <section>
+                    <h2>Recording</h2>
+
+                    <div class="form-group">
+                        <label for="sourceSelect">Screen/Window to Record:</label>
+                        <select id="sourceSelect">
+                            <option value="">Loading sources...</option>
+                        </select>
+                        <button id="refreshSources" class="btn-secondary">Refresh</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="outputFolder">Output Folder:</label>
+                        <input type="text" id="outputFolder" readonly placeholder="Click Browse to select">
+                        <button id="browseOutput" class="btn-secondary">Browse</button>
+                    </div>
+                </section>
+
+                <div class="separator"></div>
+
+                <!-- Mouse Tracking Section -->
+                <section>
+                    <h2>Mouse Tracking</h2>
+
+                    <div class="form-group">
+                        <label for="enableTracking">
+                            <input type="checkbox" id="enableTracking" checked>
+                            Enable Auto-Tracking
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="zoomLevel">Zoom Level: <span id="zoomValue">1.5x</span></label>
+                        <input type="range" id="zoomLevel" min="1.0" max="3.0" step="0.1" value="1.5">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="smoothing">
+                            <input type="checkbox" id="smoothing" checked>
+                            Smooth Zoom Transitions
+                        </label>
+                    </div>
+                </section>
+
+                <div class="separator"></div>
+
+                <!-- Video Settings Section -->
+                <section>
+                    <h2>Video Settings</h2>
+
+                    <div class="form-group">
+                        <label for="frameRate">Frame Rate: <span id="frameRateValue">60 FPS</span></label>
+                        <input type="range" id="frameRate" min="30" max="120" step="30" value="60">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="videoQuality">Video Quality: <span id="qualityValue">85</span></label>
+                        <input type="range" id="videoQuality" min="50" max="100" step="5" value="85">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="audioEnabled">
+                            <input type="checkbox" id="audioEnabled">
+                            Record System Audio
+                        </label>
+                    </div>
+                </section>
+
+                <div class="separator"></div>
+
+                <!-- Advanced Settings Section -->
+                <section>
+                    <h2>Advanced</h2>
+
+                    <div class="form-group">
+                        <label for="showCursor">
+                            <input type="checkbox" id="showCursor" checked>
+                            Show Mouse Cursor
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="backgroundColor">Background Color:</label>
+                        <input type="color" id="backgroundColor" value="#0d0d0d">
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Control Panel -->
+        <footer class="controls">
+            <div class="duration">
+                <span id="recordingTime">00:00</span>
+            </div>
+
+            <div class="buttons">
+                <button id="startBtn" class="btn-primary">Start Recording</button>
+                <button id="pauseBtn" class="btn-secondary" style="display: none;">Pause</button>
+                <button id="resumeBtn" class="btn-secondary" style="display: none;">Resume</button>
+                <button id="stopBtn" class="btn-danger" style="display: none;">Stop Recording</button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Preview Window (hidden canvas for processing) -->
+    <canvas id="previewCanvas" style="display: none;"></canvas>
+    <video id="previewVideo" style="display: none;" autoplay muted></video>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

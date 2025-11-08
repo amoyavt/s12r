@@ -1,301 +1,420 @@
 # Screen Recorder
 
-A minimal, expandable desktop screen recording application for Windows with auto mouse pointer tracking and zoom capabilities. Inspired by Cursorful and Screen Studio.
+A minimal, cross-platform desktop screen recorder with auto mouse pointer tracking and zoom capabilities. Built with Electron for Windows, macOS, and Linux.
+
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+Inspired by Cursorful and Screen Studio, this app provides a clean, expandable foundation for building professional screen recording software.
 
 ## Features
 
-- **Screen Recording**: Capture any screen/monitor
-- **Mouse Tracking**: Automatic mouse pointer tracking with smooth zoom
-- **Configurable Zoom**: Adjustable zoom level (1.0x - 3.0x)
-- **High Quality**: 30/60/120 FPS recording with quality settings
-- **Custom Backgrounds**: Default background or custom image support
-- **Browser Frame Removal**: Option to remove browser chrome when recording
+- **Cross-Platform**: Works on Windows, macOS, and Linux
+- **Screen Recording**: Capture any screen, window, or application
+- **Mouse Tracking**: Real-time mouse position tracking with smooth zoom
+- **Configurable Zoom**: Adjustable zoom level (1.0x - 3.0x) with smooth transitions
+- **High Quality**: Up to 120 FPS recording with adjustable bitrate
+- **Audio Support**: Optional system audio recording
+- **Custom Settings**: Frame rate, video quality, background color
 - **Sleek UI**: Modern, minimal black interface
+- **Minimal & Expandable**: Clean codebase, easy to extend
 
-## Tech Stack
+## Screenshots
 
-- **.NET 8** - Modern, cross-platform framework
-- **WPF** - Windows Presentation Foundation for UI
-- **MVVM Pattern** - Model-View-ViewModel architecture
-- **CommunityToolkit.Mvvm** - Modern MVVM helpers
-- **FFmpeg** - Video encoding (to be implemented)
-- **SharpDX** - DirectX screen capture (to be implemented)
-- **Windows.Graphics.Capture** - Modern Windows screen capture API
+```
+┌─────────────────────────────────────────────────────┐
+│  Screen Recorder                                    │
+│  Ready to record                                    │
+├─────────────────────────────────────────────────────┤
+│  Recording                                          │
+│  Screen/Window: [Display 1 ▼] [Refresh]           │
+│  Output Folder: [/path/to/folder] [Browse]        │
+│                                                      │
+│  Mouse Tracking                                     │
+│  ☑ Enable Auto-Tracking                            │
+│  Zoom Level: ────●──── 1.5x                        │
+│  ☑ Smooth Zoom Transitions                         │
+│                                                      │
+│  Video Settings                                     │
+│  Frame Rate: ─────●─── 60 FPS                      │
+│  Video Quality: ────●── 85                         │
+│  ☐ Record System Audio                             │
+│                                                      │
+│  Advanced                                           │
+│  ☑ Show Mouse Cursor                               │
+│  Background Color: [#0d0d0d]                       │
+├─────────────────────────────────────────────────────┤
+│  00:00                    [Start Recording] [Stop]  │
+└─────────────────────────────────────────────────────┘
+```
+
+## Quick Start
+
+### Prerequisites
+
+- **Node.js 18+** (with npm)
+- **Git**
+
+### Installation
+
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd s12r
+
+# Install dependencies
+npm install
+
+# Run the app
+npm start
+```
+
+### Development
+
+```bash
+# Run in development mode
+npm run dev
+
+# Build for production
+npm run build
+
+# Build for specific platform
+npm run build:win    # Windows
+npm run build:mac    # macOS
+npm run build:linux  # Linux
+```
 
 ## Project Structure
 
 ```
-ScreenRecorder/
-├── Models/                      # Data models
-│   ├── RecordingConfiguration.cs
-│   ├── RecordingState.cs
-│   └── ScreenInfo.cs
-├── ViewModels/                  # MVVM ViewModels
-│   └── MainViewModel.cs
-├── Views/                       # XAML UI
-│   ├── MainWindow.xaml
-│   └── MainWindow.xaml.cs
-├── Services/                    # Business logic services
-│   ├── IScreenCaptureService.cs
-│   ├── ScreenCaptureService.cs
-│   ├── IMouseTrackingService.cs
-│   ├── MouseTrackingService.cs
-│   ├── IVideoRecordingService.cs
-│   └── VideoRecordingService.cs
-├── Utils/                       # Utility classes
-│   ├── RecordingStateToVisibilityConverter.cs
-│   └── InverseBooleanConverter.cs
-└── App.xaml                     # Application resources & theme
+s12r/
+├── src/
+│   ├── main.js              # Electron main process
+│   ├── preload.js           # Secure IPC bridge
+│   └── renderer/
+│       ├── index.html       # Main UI
+│       ├── styles.css       # Sleek black styling
+│       └── renderer.js      # UI logic & recording
+├── assets/
+│   └── icon.png             # App icon
+├── package.json             # Dependencies & scripts
+└── README.md
 ```
 
-## Architecture
+## How It Works
 
-### MVVM Pattern
+### Architecture
 
-The application follows the MVVM (Model-View-ViewModel) pattern for clean separation of concerns:
+```
+┌─────────────────────────────────────────────────────┐
+│                  Electron Main Process              │
+│  - Window management                                │
+│  - IPC handlers                                     │
+│  - Screen/source enumeration                        │
+└────────────┬────────────────────────────────────────┘
+             │ IPC (contextBridge)
+┌────────────▼────────────────────────────────────────┐
+│              Renderer Process (UI)                  │
+│  - Configuration UI                                 │
+│  - MediaRecorder API for capture                    │
+│  - Mouse tracking                                   │
+│  - Video processing                                 │
+└─────────────────────────────────────────────────────┘
+```
 
-- **Models**: Pure data classes with no business logic
-- **Views**: XAML-based UI with minimal code-behind
-- **ViewModels**: Presentation logic, data binding, and command handling
-- **Services**: Reusable business logic components
+### Key Technologies
 
-### Service Layer
-
-Services are designed as interfaces with implementations, making them:
-- **Testable**: Easy to mock for unit tests
-- **Replaceable**: Swap implementations without changing ViewModels
-- **Extensible**: Add new features by implementing interfaces
-
-### Key Services
-
-1. **IScreenCaptureService**
-   - Captures screen content at specified FPS
-   - Supports multiple monitors
-   - Raises events with frame data
-
-2. **IMouseTrackingService**
-   - Tracks mouse position using Win32 API
-   - Polls at 60 FPS for smooth tracking
-   - Raises events on position changes
-
-3. **IVideoRecordingService**
-   - Manages recording lifecycle (start/stop/pause/resume)
-   - Collects frames for encoding
-   - Handles video export with FFmpeg
-
-## Setup & Running
-
-### Prerequisites
-
-- **Visual Studio 2022** (any edition)
-- **.NET 8 SDK** - [Download here](https://dotnet.microsoft.com/download/dotnet/8.0)
-- **Windows 10/11** (required for WPF and screen capture APIs)
-
-### Opening in Visual Studio 2022
-
-1. Open Visual Studio 2022
-2. File → Open → Project/Solution
-3. Navigate to `ScreenRecorder.sln`
-4. Click Open
-
-### Building
-
-1. Right-click the solution in Solution Explorer
-2. Select "Restore NuGet Packages"
-3. Press `Ctrl+Shift+B` or Build → Build Solution
-
-### Running
-
-1. Press `F5` to run with debugging
-2. Or `Ctrl+F5` to run without debugging
+- **Electron**: Cross-platform desktop framework
+- **MediaRecorder API**: Native browser video recording
+- **desktopCapturer**: Electron API for screen/window capture
+- **Canvas API**: Video frame processing (for zoom effects)
+- **IPC (Inter-Process Communication)**: Secure main ↔ renderer communication
 
 ## Configuration Options
 
-The UI provides the following configuration options:
+### Recording
+- **Screen/Window Selection**: Choose what to capture
+- **Output Folder**: Where to save recordings
 
-- **Screen to Record**: Select which monitor to capture
-- **Output Folder**: Choose where recordings are saved
+### Mouse Tracking
 - **Enable Auto-Tracking**: Toggle mouse tracking on/off
-- **Zoom Level**: Adjust zoom intensity (1.0x - 3.0x)
-- **Frame Rate**: Select 30, 60, or 120 FPS
-- **Video Quality**: Adjust quality (50-100)
-- **Remove Browser Frame**: Strip browser UI when recording
+- **Zoom Level**: 1.0x (no zoom) to 3.0x (3x magnification)
+- **Smooth Transitions**: Interpolate zoom for smooth animation
 
-## Expanding the Application
+### Video Settings
+- **Frame Rate**: 30, 60, or 120 FPS
+- **Video Quality**: 50-100 (affects bitrate: 2.5-10 Mbps)
+- **System Audio**: Record audio along with video
 
-### Adding Screen Capture Implementation
+### Advanced
+- **Show Cursor**: Include cursor in recording
+- **Background Color**: Custom background (for future compositing)
 
-The current `ScreenCaptureService.cs` has placeholder implementation. To add real screen capture:
+## Expanding the App
 
-1. **Option A: Windows.Graphics.Capture (Recommended)**
-   ```csharp
-   // Add NuGet: Microsoft.Windows.SDK.Contracts
-   using Windows.Graphics.Capture;
-   using Windows.Graphics.DirectX.Direct3D11;
-   ```
+### Adding Canvas-Based Zoom Effect
 
-2. **Option B: SharpDX (Already referenced)**
-   ```csharp
-   // Capture using DXGI Desktop Duplication
-   using SharpDX.DXGI;
-   using SharpDX.Direct3D11;
-   ```
+Currently, zoom tracking is implemented but not applied to the video. To add real-time zoom:
 
-**Implementation location**: `Services/ScreenCaptureService.cs` → `CaptureLoop()` method
+**1. Create a processing pipeline:**
 
-### Adding FFmpeg Video Encoding
+```javascript
+// In renderer.js, add this function
+function processVideoFrame() {
+    const ctx = elements.previewCanvas.getContext('2d');
+    const video = elements.previewVideo;
 
-The `VideoRecordingService.cs` needs FFmpeg integration:
+    // Set canvas size
+    elements.previewCanvas.width = video.videoWidth;
+    elements.previewCanvas.height = video.videoHeight;
 
-1. **Download FFmpeg binaries**:
-   - Get from [ffmpeg.org](https://ffmpeg.org/download.html)
-   - Place `ffmpeg.exe` in project output folder
+    function draw() {
+        if (!state.isRecording) return;
 
-2. **Implement encoding**:
-   ```csharp
-   // In StopRecordingAsync()
-   // Pipe frames to FFmpeg process
-   // Use FFmpeg.AutoGen or System.Diagnostics.Process
-   ```
+        // Calculate zoom region around mouse
+        const zoomWidth = video.videoWidth / state.currentZoom;
+        const zoomHeight = video.videoHeight / state.currentZoom;
+        const zoomX = state.mousePosition.x - zoomWidth / 2;
+        const zoomY = state.mousePosition.y - zoomHeight / 2;
 
-3. **Example FFmpeg command**:
-   ```bash
-   ffmpeg -f rawvideo -pix_fmt bgra -s 1920x1080 -r 60 -i - -c:v libx264 -preset fast -crf 23 output.mp4
-   ```
+        // Draw zoomed section
+        ctx.drawImage(
+            video,
+            zoomX, zoomY, zoomWidth, zoomHeight,  // Source
+            0, 0, video.videoWidth, video.videoHeight  // Destination
+        );
 
-**Implementation location**: `Services/VideoRecordingService.cs` → `StopRecordingAsync()` method
+        requestAnimationFrame(draw);
+    }
 
-### Adding Mouse Zoom Effect
+    draw();
 
-To implement smooth mouse tracking with zoom:
+    // Return canvas stream instead of video stream
+    return elements.previewCanvas.captureStream(state.config.frameRate);
+}
+```
 
-1. **In ScreenCaptureService**:
-   - Subscribe to `MouseTrackingService.MousePositionChanged`
-   - Calculate zoom region around mouse position
-   - Apply transform to captured frame
+**2. Modify startRecording():**
 
-2. **Smooth Animation**:
-   - Use interpolation for smooth zoom transitions
-   - Consider easing functions (ease-in-out)
-
-3. **Example logic**:
-   ```csharp
-   var zoomWidth = frameWidth / Configuration.ZoomLevel;
-   var zoomHeight = frameHeight / Configuration.ZoomLevel;
-   var zoomX = mouseX - (zoomWidth / 2);
-   var zoomY = mouseY - (zoomHeight / 2);
-   // Crop and scale frame
-   ```
+```javascript
+// After getting the stream, process it through canvas
+const processedStream = processVideoFrame();
+state.mediaRecorder = new MediaRecorder(processedStream, options);
+```
 
 ### Adding Background Replacement
 
-To implement custom backgrounds:
+**1. Load background image:**
 
-1. **Load background image/color**
-2. **Composite layers**:
-   - Bottom layer: Background
-   - Middle layer: Captured screen (possibly with transparency)
-   - Top layer: Mouse cursor (if needed)
-
-3. **Implementation options**:
-   - Use ImageSharp for image manipulation
-   - Use DirectX for GPU-accelerated compositing
-
-### Adding New Configuration Options
-
-To add new settings:
-
-1. **Add property to `RecordingConfiguration.cs`**:
-   ```csharp
-   public bool ShowMouseCursor { get; set; } = true;
-   ```
-
-2. **Add UI control in `MainWindow.xaml`**:
-   ```xaml
-   <CheckBox IsChecked="{Binding Configuration.ShowMouseCursor}"/>
-   ```
-
-3. **Use in services**:
-   ```csharp
-   if (_config.ShowMouseCursor) {
-       // Draw cursor
-   }
-   ```
-
-## Design Patterns Used
-
-### Repository Pattern (Services)
-Services act as repositories for different concerns (capture, tracking, recording).
-
-### Command Pattern (MVVM Commands)
-User actions are encapsulated as commands using `RelayCommand` from CommunityToolkit.Mvvm.
-
-### Observer Pattern (Events)
-Services raise events that ViewModels subscribe to for decoupled communication.
-
-### Factory Pattern (Potential)
-Could be added for creating different capture/encoding strategies.
-
-## Creating Installer
-
-### Option 1: ClickOnce Deployment
-1. Right-click project → Publish
-2. Follow wizard to create installer
-
-### Option 2: WiX Toolset
-1. Install WiX Toolset
-2. Add WiX installer project to solution
-3. Configure product details and build
-
-### Option 3: Advanced Installer
-1. Use Advanced Installer (commercial)
-2. Import Visual Studio project
-3. Build MSI/EXE installer
-
-## Performance Considerations
-
-- **Frame Capture**: Use GPU-accelerated capture (DXGI or Windows.Graphics.Capture)
-- **Encoding**: Offload to background thread or GPU encoder
-- **Mouse Polling**: 60 FPS is sufficient for smooth tracking
-- **Memory Management**: Dispose captured frames promptly
-
-## Testing
-
-The architecture supports testing:
-
-```csharp
-// Example unit test
-var mockCaptureService = new Mock<IScreenCaptureService>();
-var viewModel = new MainViewModel(mockCaptureService.Object, ...);
+```javascript
+const backgroundImage = new Image();
+backgroundImage.src = 'path/to/background.png';
 ```
+
+**2. Composite in draw loop:**
+
+```javascript
+// Draw background first
+ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+
+// Draw video on top
+ctx.globalCompositeOperation = 'source-over';
+ctx.drawImage(video, ...);
+```
+
+### Adding Window Frame Detection
+
+Use Electron's window APIs to detect browser windows and crop:
+
+```javascript
+// In main.js
+const { BrowserWindow } = require('electron');
+
+ipcMain.handle('get-window-bounds', async (event, windowId) => {
+    const win = BrowserWindow.fromId(windowId);
+    if (win) {
+        const bounds = win.getBounds();
+        const contentBounds = win.getContentBounds();
+
+        return {
+            frame: {
+                top: contentBounds.y - bounds.y,
+                left: contentBounds.x - bounds.x,
+                right: bounds.width - contentBounds.width,
+                bottom: bounds.height - contentBounds.height
+            }
+        };
+    }
+});
+```
+
+### Adding More Features
+
+**Ideas for expansion:**
+- [ ] Webcam overlay
+- [ ] Annotations and drawings
+- [ ] Trim/edit after recording
+- [ ] Multiple output formats (MP4, GIF)
+- [ ] Cloud upload integration
+- [ ] Hotkey support
+- [ ] System tray integration
+- [ ] Scheduled recordings
+- [ ] Multiple simultaneous recordings
+
+## Building Executables
+
+### Windows (.exe)
+
+```bash
+npm run build:win
+```
+
+Output: `dist/Screen Recorder Setup.exe`
+
+### macOS (.dmg)
+
+```bash
+npm run build:mac
+```
+
+Output: `dist/Screen Recorder.dmg`
+
+### Linux (.AppImage, .deb)
+
+```bash
+npm run build:linux
+```
+
+Output: `dist/Screen Recorder.AppImage` and `.deb`
+
+## Development Tips
+
+### Enable DevTools
+
+Set environment variable:
+```bash
+NODE_ENV=development npm start
+```
+
+### Debugging Main Process
+
+Add to VSCode `launch.json`:
+```json
+{
+    "type": "node",
+    "request": "launch",
+    "name": "Electron Main",
+    "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron",
+    "program": "${workspaceFolder}/src/main.js",
+    "protocol": "inspector"
+}
+```
+
+### Hot Reload
+
+Install `electron-reloader`:
+```bash
+npm install --save-dev electron-reloader
+```
+
+Add to `main.js`:
+```javascript
+try {
+    require('electron-reloader')(module);
+} catch {}
+```
+
+## Troubleshooting
+
+### Screen capture not working
+
+- **Linux**: May need additional permissions. Run with `--no-sandbox`:
+  ```bash
+  npm run dev
+  ```
+
+- **macOS**: Grant screen recording permission in System Preferences → Security & Privacy → Screen Recording
+
+### Audio not recording
+
+- System audio capture has limited support. Consider using external libraries like `node-audio-capture` for better compatibility.
+
+### Video quality issues
+
+- Increase `videoQuality` slider
+- Adjust `frameRate` (lower = smaller file, higher = smoother)
+- Check available disk space
+
+## Performance Optimization
+
+### For High FPS Recording
+
+1. **Reduce resolution**: Capture at native resolution, not scaled
+2. **Hardware acceleration**: Enable in Electron (enabled by default)
+3. **Limit background processes**: Close other apps during recording
+4. **Use SSD**: Save recordings to SSD for faster write speeds
+
+### For Smooth Zoom
+
+1. **Adjust smoothing factor**: In `renderer.js`, modify:
+   ```javascript
+   const smoothing = 0.1; // Lower = smoother but slower response
+   ```
+
+2. **Optimize canvas operations**: Use `OffscreenCanvas` for better performance:
+   ```javascript
+   const offscreen = new OffscreenCanvas(width, height);
+   ```
 
 ## Contributing
 
-This is designed to be a minimal starting point. Areas for improvement:
+Contributions are welcome! This project is designed to be minimal and expandable.
 
-- [ ] Implement actual screen capture using Windows.Graphics.Capture
-- [ ] Add FFmpeg video encoding
-- [ ] Implement mouse zoom effect
-- [ ] Add background replacement
-- [ ] Add audio recording
-- [ ] Add editing features (trim, cut)
-- [ ] Add hotkey support
-- [ ] Add system tray integration
-- [ ] Add preset configurations
-- [ ] Add export to different formats
+### Getting Started
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes
+4. Test on your platform
+5. Commit: `git commit -m 'Add amazing feature'`
+6. Push: `git push origin feature/amazing-feature`
+7. Open a Pull Request
+
+### Code Style
+
+- Use ES6+ features
+- Follow existing code structure
+- Comment complex logic
+- Keep functions focused and small
+
+## Security
+
+This app uses `contextIsolation` and `nodeIntegration: false` for security. All Node.js APIs are exposed through a secure preload script.
 
 ## License
 
-MIT License - feel free to use and modify for your needs.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Resources
 
-- [WPF Documentation](https://docs.microsoft.com/en-us/dotnet/desktop/wpf/)
-- [MVVM Toolkit](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/)
-- [Windows.Graphics.Capture](https://docs.microsoft.com/en-us/uwp/api/windows.graphics.capture)
-- [FFmpeg Documentation](https://ffmpeg.org/documentation.html)
-- [SharpDX](http://sharpdx.org/)
+- [Electron Documentation](https://www.electronjs.org/docs)
+- [MediaRecorder API](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder)
+- [Canvas API](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)
+- [Electron Builder](https://www.electron.build/)
+
+## Acknowledgments
+
+Inspired by:
+- [Cursorful](https://cursorful.com/)
+- [Screen Studio](https://www.screen.studio/)
 
 ## Support
 
-For issues or questions, please open an issue on the repository.
+If you encounter issues or have questions:
+1. Check [Troubleshooting](#troubleshooting) section
+2. Search existing [Issues](../../issues)
+3. Open a new issue with details about your environment and problem
+
+---
+
+Built with ❤️ using Electron
