@@ -55,6 +55,8 @@ const elements = {
 
     showCursor: document.getElementById('showCursor'),
     backgroundColor: document.getElementById('backgroundColor'),
+    showCanvasPreview: document.getElementById('showCanvasPreview'),
+    canvasPreviewContainer: document.getElementById('canvasPreviewContainer'),
 
     recordingTime: document.getElementById('recordingTime'),
     startBtn: document.getElementById('startBtn'),
@@ -152,6 +154,14 @@ function setupEventListeners() {
         state.config.backgroundColor = e.target.value;
     });
 
+    elements.showCanvasPreview.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            elements.canvasPreviewContainer.style.display = 'block';
+        } else {
+            elements.canvasPreviewContainer.style.display = 'none';
+        }
+    });
+
     // Recording controls
     elements.startBtn.addEventListener('click', startRecording);
     elements.pauseBtn.addEventListener('click', pauseRecording);
@@ -224,8 +234,17 @@ async function startRecording() {
         if (state.config.enableTracking) {
             console.log('[RECORDING] Using canvas stream with tracking enabled');
 
+            // Start rendering loop FIRST to ensure canvas has content
+            startCanvasRendering();
+            console.log('[RECORDING] Canvas rendering started');
+
+            // Wait a bit for the first frame to be drawn
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             // Record from canvas with effects
             const canvasStream = canvas.captureStream(state.config.frameRate);
+            console.log('[RECORDING] Canvas stream created');
+            console.log('[RECORDING] Canvas stream tracks:', canvasStream.getTracks());
 
             // Add audio track if enabled
             if (state.config.audioEnabled) {
@@ -235,10 +254,6 @@ async function startRecording() {
             }
 
             recordingStream = canvasStream;
-
-            // Start rendering loop
-            startCanvasRendering();
-            console.log('[RECORDING] Canvas rendering started');
         } else {
             console.log('[RECORDING] Using direct stream (no tracking)');
             // Record directly without effects
@@ -271,9 +286,13 @@ async function startRecording() {
 
         state.mediaRecorder.onstart = () => {
             console.log('[RECORDING] MediaRecorder started');
+            console.log('[RECORDING] MediaRecorder state:', state.mediaRecorder.state);
         };
 
-        state.mediaRecorder.onstop = handleRecordingStop;
+        state.mediaRecorder.onstop = () => {
+            console.log('[RECORDING] MediaRecorder stopped event');
+            handleRecordingStop();
+        };
 
         // Start recording
         state.mediaRecorder.start(100); // Collect data every 100ms
@@ -281,6 +300,7 @@ async function startRecording() {
         state.startTime = Date.now();
 
         console.log('[RECORDING] MediaRecorder.start() called');
+        console.log('[RECORDING] MediaRecorder state:', state.mediaRecorder.state);
 
         // Start mouse tracking if enabled
         if (state.config.enableTracking) {
@@ -404,6 +424,11 @@ function startCanvasRendering() {
     const video = elements.previewVideo;
 
     console.log('[CANVAS] Starting canvas rendering');
+    console.log('[CANVAS] Canvas dimensions:', canvas.width, 'x', canvas.height);
+    console.log('[CANVAS] Video element ready state:', video.readyState);
+    console.log('[CANVAS] Video element paused:', video.paused);
+    console.log('[CANVAS] Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+
     let frameCount = 0;
 
     function render() {
@@ -413,6 +438,11 @@ function startCanvasRendering() {
         }
 
         frameCount++;
+        if (frameCount === 1) {
+            console.log('[CANVAS] First frame rendered');
+            console.log('[CANVAS] Video readyState:', video.readyState);
+            console.log('[CANVAS] Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+        }
         if (frameCount % 60 === 0) {
             console.log('[CANVAS] Rendered', frameCount, 'frames');
         }
@@ -421,44 +451,67 @@ function startCanvasRendering() {
         ctx.fillStyle = state.config.backgroundColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+        // Check if video is ready
+        if (video.readyState < 2) {
+            console.warn('[CANVAS] Video not ready yet, skipping frame');
+            state.renderAnimationFrame = requestAnimationFrame(render);
+            return;
+        }
+
         // Draw video with zoom effect
-        if (state.config.enableTracking && state.currentZoom > 1.0) {
-            // Calculate the zoomed region centered on mouse position
-            const zoomWidth = state.videoWidth / state.currentZoom;
-            const zoomHeight = state.videoHeight / state.currentZoom;
+        try {
+            if (state.config.enableTracking && state.currentZoom > 1.0) {
+                // Calculate the zoomed region centered on mouse position
+                const zoomWidth = state.videoWidth / state.currentZoom;
+                const zoomHeight = state.videoHeight / state.currentZoom;
 
-            // Get mouse position relative to video dimensions
-            // Clamp to ensure we don't go out of bounds
-            const mouseX = Math.max(zoomWidth / 2, Math.min(state.videoWidth - zoomWidth / 2, state.mousePosition.x));
-            const mouseY = Math.max(zoomHeight / 2, Math.min(state.videoHeight - zoomHeight / 2, state.mousePosition.y));
+                // Get mouse position relative to video dimensions
+                // Clamp to ensure we don't go out of bounds
+                const mouseX = Math.max(zoomWidth / 2, Math.min(state.videoWidth - zoomWidth / 2, state.mousePosition.x));
+                const mouseY = Math.max(zoomHeight / 2, Math.min(state.videoHeight - zoomHeight / 2, state.mousePosition.y));
 
-            // Calculate source rectangle (the part we're zooming into)
-            const sx = mouseX - zoomWidth / 2;
-            const sy = mouseY - zoomHeight / 2;
+                // Calculate source rectangle (the part we're zooming into)
+                const sx = mouseX - zoomWidth / 2;
+                const sy = mouseY - zoomHeight / 2;
 
-            // Draw the zoomed portion
-            ctx.drawImage(
-                video,
-                sx, sy, zoomWidth, zoomHeight,  // Source rectangle
-                0, 0, canvas.width, canvas.height  // Destination rectangle
-            );
+                if (frameCount === 1) {
+                    console.log('[CANVAS] Drawing zoomed video - sx:', sx, 'sy:', sy, 'zoom:', state.currentZoom);
+                }
 
-            // Draw cursor if enabled
-            if (state.config.showCursor) {
-                const cursorX = (canvas.width / 2);
-                const cursorY = (canvas.height / 2);
-                drawCursor(ctx, cursorX, cursorY);
+                // Draw the zoomed portion
+                ctx.drawImage(
+                    video,
+                    sx, sy, zoomWidth, zoomHeight,  // Source rectangle
+                    0, 0, canvas.width, canvas.height  // Destination rectangle
+                );
+
+                // Draw cursor if enabled
+                if (state.config.showCursor) {
+                    const cursorX = (canvas.width / 2);
+                    const cursorY = (canvas.height / 2);
+                    drawCursor(ctx, cursorX, cursorY);
+                }
+            } else {
+                if (frameCount === 1) {
+                    console.log('[CANVAS] Drawing full video (no zoom)');
+                }
+
+                // No zoom, draw entire video
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Draw cursor if enabled
+                if (state.config.showCursor) {
+                    const cursorX = (state.mousePosition.x / state.videoWidth) * canvas.width;
+                    const cursorY = (state.mousePosition.y / state.videoHeight) * canvas.height;
+                    drawCursor(ctx, cursorX, cursorY);
+                }
             }
-        } else {
-            // No zoom, draw entire video
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // Draw cursor if enabled
-            if (state.config.showCursor) {
-                const cursorX = (state.mousePosition.x / state.videoWidth) * canvas.width;
-                const cursorY = (state.mousePosition.y / state.videoHeight) * canvas.height;
-                drawCursor(ctx, cursorX, cursorY);
+            if (frameCount === 1) {
+                console.log('[CANVAS] First frame drawn successfully');
             }
+        } catch (error) {
+            console.error('[CANVAS] Error drawing frame:', error);
         }
 
         state.renderAnimationFrame = requestAnimationFrame(render);
