@@ -167,6 +167,9 @@ async function startRecording() {
     }
 
     try {
+        console.log('[RECORDING] Starting recording...');
+        console.log('[RECORDING] Config:', state.config);
+
         // Get the stream for the selected source
         const stream = await navigator.mediaDevices.getUserMedia({
             audio: state.config.audioEnabled ? {
@@ -187,6 +190,9 @@ async function startRecording() {
             }
         });
 
+        console.log('[RECORDING] Got media stream:', stream);
+        console.log('[RECORDING] Video tracks:', stream.getVideoTracks());
+
         // Set up video preview
         elements.previewVideo.srcObject = stream;
         elements.previewVideo.play();
@@ -196,6 +202,8 @@ async function startRecording() {
             elements.previewVideo.onloadedmetadata = resolve;
         });
 
+        console.log('[RECORDING] Video metadata loaded');
+
         // Set up canvas for recording with effects
         const canvas = elements.previewCanvas;
         const videoTrack = stream.getVideoTracks()[0];
@@ -203,6 +211,8 @@ async function startRecording() {
 
         canvas.width = settings.width || 1920;
         canvas.height = settings.height || 1080;
+
+        console.log('[RECORDING] Canvas size:', canvas.width, 'x', canvas.height);
 
         // Store original stream and video dimensions
         state.sourceStream = stream;
@@ -212,6 +222,8 @@ async function startRecording() {
         // Get canvas stream (this will include the zoom effects)
         let recordingStream;
         if (state.config.enableTracking) {
+            console.log('[RECORDING] Using canvas stream with tracking enabled');
+
             // Record from canvas with effects
             const canvasStream = canvas.captureStream(state.config.frameRate);
 
@@ -219,16 +231,21 @@ async function startRecording() {
             if (state.config.audioEnabled) {
                 const audioTracks = stream.getAudioTracks();
                 audioTracks.forEach(track => canvasStream.addTrack(track));
+                console.log('[RECORDING] Added audio tracks:', audioTracks.length);
             }
 
             recordingStream = canvasStream;
 
             // Start rendering loop
             startCanvasRendering();
+            console.log('[RECORDING] Canvas rendering started');
         } else {
+            console.log('[RECORDING] Using direct stream (no tracking)');
             // Record directly without effects
             recordingStream = stream;
         }
+
+        console.log('[RECORDING] Recording stream tracks:', recordingStream.getTracks());
 
         // Configure MediaRecorder
         const options = {
@@ -236,13 +253,24 @@ async function startRecording() {
             videoBitsPerSecond: calculateBitrate(state.config.videoQuality)
         };
 
+        console.log('[RECORDING] MediaRecorder options:', options);
+
         state.mediaRecorder = new MediaRecorder(recordingStream, options);
         state.recordedChunks = [];
 
         state.mediaRecorder.ondataavailable = (e) => {
             if (e.data.size > 0) {
+                console.log('[RECORDING] Data chunk received:', e.data.size, 'bytes');
                 state.recordedChunks.push(e.data);
             }
+        };
+
+        state.mediaRecorder.onerror = (e) => {
+            console.error('[RECORDING] MediaRecorder error:', e);
+        };
+
+        state.mediaRecorder.onstart = () => {
+            console.log('[RECORDING] MediaRecorder started');
         };
 
         state.mediaRecorder.onstop = handleRecordingStop;
@@ -252,9 +280,12 @@ async function startRecording() {
         state.isRecording = true;
         state.startTime = Date.now();
 
+        console.log('[RECORDING] MediaRecorder.start() called');
+
         // Start mouse tracking if enabled
         if (state.config.enableTracking) {
             startMouseTracking();
+            console.log('[RECORDING] Mouse tracking started');
         }
 
         // Start timer
@@ -265,7 +296,7 @@ async function startRecording() {
         updateStatus('Recording...');
 
     } catch (error) {
-        console.error('Failed to start recording:', error);
+        console.error('[RECORDING] Failed to start recording:', error);
         updateStatus(`Error: ${error.message}`);
     }
 }
@@ -299,6 +330,9 @@ function resumeRecording() {
 // Stop recording
 async function stopRecording() {
     if (state.mediaRecorder) {
+        console.log('[RECORDING] Stopping recording...');
+        console.log('[RECORDING] Total chunks collected:', state.recordedChunks.length);
+
         state.mediaRecorder.stop();
         stopMouseTracking();
         stopCanvasRendering();
@@ -315,35 +349,46 @@ async function stopRecording() {
 
 // Handle recording stop
 async function handleRecordingStop() {
+    console.log('[RECORDING] handleRecordingStop called');
+    console.log('[RECORDING] Chunks to process:', state.recordedChunks.length);
+
     try {
         const blob = new Blob(state.recordedChunks, {
             type: 'video/webm'
         });
 
+        console.log('[RECORDING] Blob created, size:', blob.size, 'bytes');
+
         // Get save path
         const savePath = await window.electronAPI.showSaveDialog();
 
         if (savePath) {
+            console.log('[RECORDING] Save path selected:', savePath);
             updateStatus('Saving recording...');
 
             // Convert blob to buffer and save
             const buffer = await blob.arrayBuffer();
+            console.log('[RECORDING] Buffer size:', buffer.byteLength, 'bytes');
 
             // Save file through main process
             const result = await window.electronAPI.saveRecording(savePath, buffer);
 
             if (result.success) {
+                console.log('[RECORDING] File saved successfully');
                 updateStatus(`Recording saved: ${savePath}`);
             } else {
+                console.error('[RECORDING] Failed to save file:', result.error);
                 updateStatus(`Failed to save: ${result.error}`);
             }
         } else {
+            console.log('[RECORDING] Save cancelled by user');
             updateStatus('Recording cancelled');
         }
     } catch (error) {
-        console.error('Failed to save recording:', error);
+        console.error('[RECORDING] Failed to save recording:', error);
         updateStatus(`Error: ${error.message}`);
     } finally {
+        console.log('[RECORDING] Cleanup and reset state');
         // Reset state
         state.isRecording = false;
         state.isPaused = false;
@@ -358,8 +403,19 @@ function startCanvasRendering() {
     const ctx = canvas.getContext('2d');
     const video = elements.previewVideo;
 
+    console.log('[CANVAS] Starting canvas rendering');
+    let frameCount = 0;
+
     function render() {
-        if (!state.isRecording) return;
+        if (!state.isRecording) {
+            console.log('[CANVAS] Stopped rendering (not recording)');
+            return;
+        }
+
+        frameCount++;
+        if (frameCount % 60 === 0) {
+            console.log('[CANVAS] Rendered', frameCount, 'frames');
+        }
 
         // Clear canvas
         ctx.fillStyle = state.config.backgroundColor;
@@ -437,9 +493,17 @@ function drawCursor(ctx, x, y) {
 
 // Mouse tracking
 function startMouseTracking() {
+    console.log('[MOUSE] Starting mouse tracking');
+    let updateCount = 0;
+
     state.mouseTrackingInterval = setInterval(async () => {
         const position = await window.electronAPI.getMousePosition();
         state.mousePosition = position;
+
+        updateCount++;
+        if (updateCount % 60 === 0) {
+            console.log('[MOUSE] Position update #', updateCount, ':', position);
+        }
 
         // Update target zoom based on mouse movement
         if (state.config.enableTracking) {

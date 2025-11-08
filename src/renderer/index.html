@@ -124,8 +124,9 @@
     </div>
 
     <!-- Preview Window (hidden canvas for processing) -->
-    <canvas id="previewCanvas" style="display: none;"></canvas>
-    <video id="previewVideo" style="display: none;" autoplay muted></video>
+    <!-- Note: Using visibility:hidden instead of display:none to ensure canvas.captureStream() works -->
+    <canvas id="previewCanvas" style="position: absolute; top: -9999px; left: -9999px;"></canvas>
+    <video id="previewVideo" style="position: absolute; top: -9999px; left: -9999px;" autoplay muted></video>
 
     <script src="renderer.js"></script>
 </body>
