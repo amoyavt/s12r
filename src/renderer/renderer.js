@@ -269,40 +269,41 @@ async function stopRecording() {
 
 // Handle recording stop
 async function handleRecordingStop() {
-    const blob = new Blob(state.recordedChunks, {
-        type: 'video/webm'
-    });
+    try {
+        const blob = new Blob(state.recordedChunks, {
+            type: 'video/webm'
+        });
 
-    // Get save path
-    const savePath = await window.electronAPI.showSaveDialog();
+        // Get save path
+        const savePath = await window.electronAPI.showSaveDialog();
 
-    if (savePath) {
-        // Convert blob to buffer and save
-        const buffer = await blob.arrayBuffer();
-        const fs = require('fs');
+        if (savePath) {
+            updateStatus('Saving recording...');
 
-        try {
-            // In Electron, we need to use Node.js fs through preload
-            // For now, create download link
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = savePath.split('/').pop() || `recording-${Date.now()}.webm`;
-            a.click();
-            URL.revokeObjectURL(url);
+            // Convert blob to buffer and save
+            const buffer = await blob.arrayBuffer();
 
-            updateStatus(`Recording saved: ${a.download}`);
-        } catch (error) {
-            console.error('Failed to save recording:', error);
-            updateStatus('Failed to save recording');
+            // Save file through main process
+            const result = await window.electronAPI.saveRecording(savePath, buffer);
+
+            if (result.success) {
+                updateStatus(`Recording saved: ${savePath}`);
+            } else {
+                updateStatus(`Failed to save: ${result.error}`);
+            }
+        } else {
+            updateStatus('Recording cancelled');
         }
+    } catch (error) {
+        console.error('Failed to save recording:', error);
+        updateStatus(`Error: ${error.message}`);
+    } finally {
+        // Reset state
+        state.isRecording = false;
+        state.isPaused = false;
+        state.recordedChunks = [];
+        updateUIForIdle();
     }
-
-    // Reset state
-    state.isRecording = false;
-    state.isPaused = false;
-    state.recordedChunks = [];
-    updateUIForIdle();
 }
 
 // Mouse tracking

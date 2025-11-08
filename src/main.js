@@ -94,3 +94,16 @@ ipcMain.handle('show-open-dialog', async (event, options) => {
   const result = await dialog.showOpenDialog(mainWindow, options);
   return result.filePaths;
 });
+
+// Save recording file
+const fs = require('fs').promises;
+
+ipcMain.handle('save-recording', async (event, { filePath, buffer }) => {
+  try {
+    await fs.writeFile(filePath, Buffer.from(buffer));
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save recording:', error);
+    return { success: false, error: error.message };
+  }
+});
