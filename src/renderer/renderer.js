@@ -24,7 +24,14 @@ const state = {
     // Mouse tracking
     mousePosition: { x: 0, y: 0 },
     currentZoom: 1.0,
-    targetZoom: 1.0
+    targetZoom: 1.0,
+    mouseTrackingInterval: null,
+
+    // Video stream and rendering
+    sourceStream: null,
+    videoWidth: 0,
+    videoHeight: 0,
+    renderAnimationFrame: null
 };
 
 // DOM Elements
@@ -184,13 +191,52 @@ async function startRecording() {
         elements.previewVideo.srcObject = stream;
         elements.previewVideo.play();
 
+        // Wait for video metadata to load
+        await new Promise((resolve) => {
+            elements.previewVideo.onloadedmetadata = resolve;
+        });
+
+        // Set up canvas for recording with effects
+        const canvas = elements.previewCanvas;
+        const videoTrack = stream.getVideoTracks()[0];
+        const settings = videoTrack.getSettings();
+
+        canvas.width = settings.width || 1920;
+        canvas.height = settings.height || 1080;
+
+        // Store original stream and video dimensions
+        state.sourceStream = stream;
+        state.videoWidth = canvas.width;
+        state.videoHeight = canvas.height;
+
+        // Get canvas stream (this will include the zoom effects)
+        let recordingStream;
+        if (state.config.enableTracking) {
+            // Record from canvas with effects
+            const canvasStream = canvas.captureStream(state.config.frameRate);
+
+            // Add audio track if enabled
+            if (state.config.audioEnabled) {
+                const audioTracks = stream.getAudioTracks();
+                audioTracks.forEach(track => canvasStream.addTrack(track));
+            }
+
+            recordingStream = canvasStream;
+
+            // Start rendering loop
+            startCanvasRendering();
+        } else {
+            // Record directly without effects
+            recordingStream = stream;
+        }
+
         // Configure MediaRecorder
         const options = {
             mimeType: 'video/webm;codecs=vp9',
             videoBitsPerSecond: calculateBitrate(state.config.videoQuality)
         };
 
-        state.mediaRecorder = new MediaRecorder(stream, options);
+        state.mediaRecorder = new MediaRecorder(recordingStream, options);
         state.recordedChunks = [];
 
         state.mediaRecorder.ondataavailable = (e) => {
@@ -255,12 +301,12 @@ async function stopRecording() {
     if (state.mediaRecorder) {
         state.mediaRecorder.stop();
         stopMouseTracking();
+        stopCanvasRendering();
         stopTimer();
 
         // Stop all tracks
-        const stream = elements.previewVideo.srcObject;
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
+        if (state.sourceStream) {
+            state.sourceStream.getTracks().forEach(track => track.stop());
         }
 
         updateStatus('Processing video...');
@@ -306,6 +352,89 @@ async function handleRecordingStop() {
     }
 }
 
+// Canvas rendering with zoom effects
+function startCanvasRendering() {
+    const canvas = elements.previewCanvas;
+    const ctx = canvas.getContext('2d');
+    const video = elements.previewVideo;
+
+    function render() {
+        if (!state.isRecording) return;
+
+        // Clear canvas
+        ctx.fillStyle = state.config.backgroundColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw video with zoom effect
+        if (state.config.enableTracking && state.currentZoom > 1.0) {
+            // Calculate the zoomed region centered on mouse position
+            const zoomWidth = state.videoWidth / state.currentZoom;
+            const zoomHeight = state.videoHeight / state.currentZoom;
+
+            // Get mouse position relative to video dimensions
+            // Clamp to ensure we don't go out of bounds
+            const mouseX = Math.max(zoomWidth / 2, Math.min(state.videoWidth - zoomWidth / 2, state.mousePosition.x));
+            const mouseY = Math.max(zoomHeight / 2, Math.min(state.videoHeight - zoomHeight / 2, state.mousePosition.y));
+
+            // Calculate source rectangle (the part we're zooming into)
+            const sx = mouseX - zoomWidth / 2;
+            const sy = mouseY - zoomHeight / 2;
+
+            // Draw the zoomed portion
+            ctx.drawImage(
+                video,
+                sx, sy, zoomWidth, zoomHeight,  // Source rectangle
+                0, 0, canvas.width, canvas.height  // Destination rectangle
+            );
+
+            // Draw cursor if enabled
+            if (state.config.showCursor) {
+                const cursorX = (canvas.width / 2);
+                const cursorY = (canvas.height / 2);
+                drawCursor(ctx, cursorX, cursorY);
+            }
+        } else {
+            // No zoom, draw entire video
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Draw cursor if enabled
+            if (state.config.showCursor) {
+                const cursorX = (state.mousePosition.x / state.videoWidth) * canvas.width;
+                const cursorY = (state.mousePosition.y / state.videoHeight) * canvas.height;
+                drawCursor(ctx, cursorX, cursorY);
+            }
+        }
+
+        state.renderAnimationFrame = requestAnimationFrame(render);
+    }
+
+    render();
+}
+
+function stopCanvasRendering() {
+    if (state.renderAnimationFrame) {
+        cancelAnimationFrame(state.renderAnimationFrame);
+        state.renderAnimationFrame = null;
+    }
+}
+
+function drawCursor(ctx, x, y) {
+    const size = 20;
+    ctx.strokeStyle = '#FF0000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, size / 2, 0, 2 * Math.PI);
+    ctx.stroke();
+
+    // Draw crosshair
+    ctx.beginPath();
+    ctx.moveTo(x - size, y);
+    ctx.lineTo(x + size, y);
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x, y + size);
+    ctx.stroke();
+}
+
 // Mouse tracking
 function startMouseTracking() {
     state.mouseTrackingInterval = setInterval(async () => {
@@ -315,6 +444,8 @@ function startMouseTracking() {
         // Update target zoom based on mouse movement
         if (state.config.enableTracking) {
             state.targetZoom = state.config.zoomLevel;
+        } else {
+            state.targetZoom = 1.0;
         }
 
         // Smooth zoom transition
@@ -324,9 +455,6 @@ function startMouseTracking() {
         } else {
             state.currentZoom = state.targetZoom;
         }
-
-        // Apply zoom effect to canvas (if implemented)
-        // This would involve drawing the video frame to canvas with zoom applied
 
     }, 16); // ~60 FPS
 }
